@@ -1,0 +1,41 @@
+# Builds the desktop app for macOS + Windows and publishes a GitHub Release
+# whenever a version tag (v1.2.3) is pushed. The published release is what
+# the in-app updater checks against.
+#
+# Release procedure (from your machine):
+#   npm version patch        # bumps package.json + creates the git tag
+#   git push --follow-tags   # CI does the rest
+name: Release desktop app
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            args: --mac
+          - os: windows-latest
+            args: --win
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Package and publish
+        run: npx electron-builder ${{ matrix.args }} --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

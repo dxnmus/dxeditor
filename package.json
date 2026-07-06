@@ -1,0 +1,75 @@
+{
+  "name": "dxeditor",
+  "productName": "DXEditor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local Markdown reader/editor pointed at a folder (e.g. OneDrive).",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "concurrently -k -n server,web -c blue,green \"node server/index.js\" \"vite\"",
+    "build": "vite build",
+    "start": "cross-env NODE_ENV=production node server/index.js",
+    "serve": "npm run build && npm run start",
+    "app:dev": "npm run build && electron .",
+    "app:build": "npm run build && electron-builder --publish never",
+    "app:release": "npm run build && electron-builder --publish always"
+  },
+  "dependencies": {
+    "chokidar": "^5.0.0",
+    "dotenv": "^16.4.5",
+    "electron-updater": "^6.3.9",
+    "express": "^4.19.2",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@milkdown/crepe": "^7.21.2",
+    "@milkdown/kit": "^7.21.2",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^9.0.1",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2"
+  },
+  "build": {
+    "appId": "edu.llu.dxeditor",
+    "productName": "DXEditor",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "server/**/*",
+      "electron/**/*",
+      "!server/**/*.test.js"
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "dxnmus",
+      "repo": "dxeditor"
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] },
+        { "target": "zip", "arch": ["arm64", "x64"] }
+      ],
+      "identity": null
+    },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

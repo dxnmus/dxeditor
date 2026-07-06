@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+.DS_Store
+sample-notes
+workspaces.json
+pressure-test
+test-school
+release
