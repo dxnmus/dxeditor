@@ -56,7 +56,8 @@
     "publish": {
       "provider": "github",
       "owner": "dxnmus",
-      "repo": "dxeditor"
+      "repo": "dxeditor",
+      "releaseType": "release"
     },
     "mac": {
       "category": "public.app-category.productivity",
