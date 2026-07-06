@@ -150,6 +150,7 @@ button { font-family: inherit; }
 /* The pinned guide sits just below any recents, gently set apart. */
 .recent-guide { color: var(--text); font-weight: 500; }
 .recent-guide .recent-icon { color: var(--accent, var(--text-soft)); }
+.recent-guide.active { background: var(--bg-hover); }
 
 .tree, .tree ul { list-style: none; margin: 0; padding: 0; }
 

@@ -770,9 +770,8 @@ export default function App() {
     .filter((w) => w.name !== GUIDE_WS_NAME)
     .slice(0, 4);
   // The guide is pinned to the bottom of the sidebar so it's always one click
-  // away, regardless of recency. Hidden only while it's the open workspace.
-  const guideWs = workspaces.find((w) => w.name === GUIDE_WS_NAME);
-  const pinnedGuide = guideWs && guideWs.id !== wsId ? guideWs : null;
+  // away, regardless of recency, and stays visible even while it's open.
+  const pinnedGuide = workspaces.find((w) => w.name === GUIDE_WS_NAME) ?? null;
   const title = file ? file.path.split("/").pop()!.replace(/\.[^.]+$/, "") : "";
   const breadcrumbPath = file?.path ?? preview;
   const breadcrumb = breadcrumbPath
@@ -868,7 +867,10 @@ export default function App() {
               {pinnedGuide && (
                 <button
                   key={pinnedGuide.id}
-                  className="recent-item recent-guide"
+                  className={
+                    "recent-item recent-guide" +
+                    (pinnedGuide.id === wsId ? " active" : "")
+                  }
                   title="Open the DXEditor guide"
                   onClick={() => switchWorkspace(pinnedGuide.id)}
                 >

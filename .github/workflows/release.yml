@@ -18,6 +18,13 @@ permissions:
 jobs:
   build:
     strategy:
+      # Run one platform at a time. Both jobs publish to the same GitHub
+      # release, and if they run in parallel they race to *create* it — the
+      # loser gets "422 already_exists" and fails. Serializing means the first
+      # job creates the release and the second just uploads to it.
+      max-parallel: 1
+      # Don't let one platform's failure cancel the other mid-build.
+      fail-fast: false
       matrix:
         include:
           - os: macos-latest

@@ -61,41 +61,27 @@ export function setupUpdater(getWindow) {
     if (!checkingInteractively) return;
     checkingInteractively = false;
 
-    const msg = String(err?.message || err);
-    // A private GitHub repo returns 404 to unauthenticated update checks, so
-    // that is the expected state during private testing, not a real failure.
-    const looksPrivate = /404|authentication token|releases\.atom/i.test(msg);
-    if (looksPrivate) {
-      dialog
-        .showMessageBox(getWin(), {
-          type: "info",
-          title: "Automatic updates not available yet",
-          message:
-            "Automatic updates turn on once the project is public.",
-          detail:
-            "While it is in private testing, the app cannot check for updates " +
-            "on its own. You can always download the latest version from the " +
-            "releases page.",
-          buttons: ["Open Releases Page", "OK"],
-          defaultId: 1,
-          cancelId: 1,
-        })
-        .then(({ response }) => {
-          if (response === 0) {
-            shell.openExternal(
-              "https://github.com/dxnmus/dxeditor/releases/latest"
-            );
-          }
-        });
-      return;
-    }
-
-    dialog.showMessageBox(getWin(), {
-      type: "warning",
-      title: "Update check failed",
-      message: "Could not check for updates.",
-      detail: msg.slice(0, 300),
-    });
+    // Any failure to reach the update server lands here. Offer the releases
+    // page as a manual fallback rather than showing a raw error dump.
+    dialog
+      .showMessageBox(getWin(), {
+        type: "warning",
+        title: "Couldn't check for updates",
+        message: "The update server could not be reached right now.",
+        detail:
+          "Please try again in a moment. You can also download the latest " +
+          "version directly from the releases page.",
+        buttons: ["Open Releases Page", "OK"],
+        defaultId: 1,
+        cancelId: 1,
+      })
+      .then(({ response }) => {
+        if (response === 0) {
+          shell.openExternal(
+            "https://github.com/dxnmus/dxeditor/releases/latest"
+          );
+        }
+      });
   });
 
   // Check shortly after launch, then every 4 hours while the app stays open.
