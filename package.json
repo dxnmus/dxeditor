@@ -50,6 +50,9 @@
       "electron/**/*",
       "!server/**/*.test.js"
     ],
+    "extraResources": [
+      { "from": "guide", "to": "guide" }
+    ],
     "publish": {
       "provider": "github",
       "owner": "dxnmus",

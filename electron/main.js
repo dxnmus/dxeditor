@@ -4,6 +4,7 @@
 import { app, BrowserWindow, Menu, shell } from "electron";
 import path from "node:path";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { createServer } from "../server/app.js";
 import { setupUpdater, checkForUpdatesNow } from "./updater.js";
@@ -17,39 +18,90 @@ if (!gotLock) app.quit();
 
 let win = null;
 
-/** First run only: create a starter workspace folder the user can edit. */
-function ensureSeedRoot(dataDir) {
-  const seedRoot = path.join(dataDir, "Welcome Notes");
-  if (!fs.existsSync(path.join(dataDir, "workspaces.json"))) {
-    fs.mkdirSync(seedRoot, { recursive: true });
-    const welcome = path.join(seedRoot, "Welcome.md");
-    if (!fs.existsSync(welcome)) {
-      fs.writeFileSync(
-        welcome,
-        [
-          "# Welcome to DXEditor",
-          "",
-          "This starter workspace lives inside the app's data folder.",
-          "To work on real notes, open the workspace menu in the sidebar",
-          "and choose **Add workspace**, then pick any folder on your",
-          "computer — for shared work, pick your synced OneDrive folder.",
-          "",
-          "Your files stay as plain `.md` files on disk. Nothing is uploaded.",
-        ].join("\n") + "\n",
-        "utf8"
-      );
+/** Where the shipped guide lives: app resources when packaged, repo in dev. */
+function bundledGuideDir() {
+  const packaged = path.join(process.resourcesPath || "", "guide");
+  if (app.isPackaged && fs.existsSync(packaged)) return packaged;
+  return path.join(PROJECT_ROOT, "guide");
+}
+
+/**
+ * Rebuild the "DXEditor Guide" workspace from the shipped copy on every launch
+ * so the docs always match the installed version. These pages are meant to be
+ * read-only; any edits are replaced on the next launch.
+ */
+function refreshGuide(dataDir) {
+  const src = bundledGuideDir();
+  const dest = path.join(dataDir, "DXEditor Guide");
+  if (fs.existsSync(src)) {
+    fs.rmSync(dest, { recursive: true, force: true });
+    fs.cpSync(src, dest, { recursive: true });
+  } else {
+    fs.mkdirSync(dest, { recursive: true });
+  }
+  return dest;
+}
+
+/** First-run scratch workspace so a new user has somewhere to write. */
+function ensureScratch(dataDir) {
+  const dest = path.join(dataDir, "My Notes");
+  if (!fs.existsSync(dest)) {
+    fs.mkdirSync(dest, { recursive: true });
+    fs.writeFileSync(
+      path.join(dest, "Untitled.md"),
+      "# My Notes\n\n" +
+        "This workspace is yours. Anything you write here stays on your " +
+        "computer.\nTo connect a shared folder, use the workspace dropdown at " +
+        "the top of the\nsidebar and choose Add workspace.\n",
+      "utf8"
+    );
+  }
+  return dest;
+}
+
+/**
+ * Keep workspaces.json sane: the guide is always present and listed first, and
+ * the scratch workspace is created on first run only. Anything the user adds
+ * later is preserved. Written before the server reads the registry.
+ */
+function setupWorkspaces(dataDir, guideRoot) {
+  const registryPath = path.join(dataDir, "workspaces.json");
+  const firstRun = !fs.existsSync(registryPath);
+  let list = [];
+  if (!firstRun) {
+    try {
+      list = JSON.parse(fs.readFileSync(registryPath, "utf8")).workspaces || [];
+    } catch {
+      list = [];
     }
   }
-  return seedRoot;
+  const newId = () => crypto.randomBytes(4).toString("hex");
+  const sameRoot = (a, b) => path.resolve(a) === path.resolve(b);
+
+  if (firstRun) {
+    const scratch = ensureScratch(dataDir);
+    list = [
+      { id: newId(), name: "DXEditor Guide", root: guideRoot },
+      { id: newId(), name: "My Notes", root: scratch },
+    ];
+  } else if (!list.some((w) => sameRoot(w.root, guideRoot))) {
+    list.unshift({ id: newId(), name: "DXEditor Guide", root: guideRoot });
+  }
+  fs.writeFileSync(
+    registryPath,
+    JSON.stringify({ workspaces: list }, null, 2) + "\n",
+    "utf8"
+  );
 }
 
 async function createWindow() {
   const dataDir = app.getPath("userData");
-  const seedRoot = ensureSeedRoot(dataDir);
+  const guideRoot = refreshGuide(dataDir);
+  setupWorkspaces(dataDir, guideRoot);
 
   const srv = createServer({
     dataDir,
-    seedRoot,
+    seedRoot: guideRoot, // exists; only used if workspaces.json is missing
     distDir: path.join(PROJECT_ROOT, "dist"),
   });
   const { port } = await srv.listen(0); // free port, localhost only
