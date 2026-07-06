@@ -33,6 +33,10 @@ import { buildReviewHtml, sanitizeRenderedHtml } from "./reviewExport";
 
 type SaveState = "saved" | "edited" | "saving" | "conflict" | "error";
 
+// The built-in guide workspace, pinned to the bottom of the sidebar so it is
+// always reachable. Kept in sync with the name the desktop app seeds.
+const GUIDE_WS_NAME = "DXEditor Guide";
+
 interface OpenFile {
   path: string;
   body: string;
@@ -763,7 +767,12 @@ export default function App() {
     .filter((id) => id !== wsId)
     .map((id) => workspaces.find((w) => w.id === id))
     .filter((w): w is Workspace => !!w)
+    .filter((w) => w.name !== GUIDE_WS_NAME)
     .slice(0, 4);
+  // The guide is pinned to the bottom of the sidebar so it's always one click
+  // away, regardless of recency. Hidden only while it's the open workspace.
+  const guideWs = workspaces.find((w) => w.name === GUIDE_WS_NAME);
+  const pinnedGuide = guideWs && guideWs.id !== wsId ? guideWs : null;
   const title = file ? file.path.split("/").pop()!.replace(/\.[^.]+$/, "") : "";
   const breadcrumbPath = file?.path ?? preview;
   const breadcrumb = breadcrumbPath
@@ -840,9 +849,11 @@ export default function App() {
               />
             )}
           </div>
-          {recentList.length > 0 && (
+          {(recentList.length > 0 || pinnedGuide) && (
             <div className="sidebar-recent">
-              <div className="recent-label">Recent workspaces</div>
+              {recentList.length > 0 && (
+                <div className="recent-label">Recent workspaces</div>
+              )}
               {recentList.map((w) => (
                 <button
                   key={w.id}
@@ -854,6 +865,17 @@ export default function App() {
                   <span className="recent-name">{w.name}</span>
                 </button>
               ))}
+              {pinnedGuide && (
+                <button
+                  key={pinnedGuide.id}
+                  className="recent-item recent-guide"
+                  title="Open the DXEditor guide"
+                  onClick={() => switchWorkspace(pinnedGuide.id)}
+                >
+                  <span className="recent-icon"><Icon name="book-open" size={14} /></span>
+                  <span className="recent-name">{pinnedGuide.name}</span>
+                </button>
+              )}
             </div>
           )}
           <div className="resizer" onMouseDown={() => (dragRef.current = true)} />
