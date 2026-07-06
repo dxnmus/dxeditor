@@ -1,7 +1,7 @@
 {
   "name": "dxeditor",
   "productName": "DXEditor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "Local Markdown reader/editor pointed at a folder (e.g. OneDrive).",
@@ -51,7 +51,10 @@
       "!server/**/*.test.js"
     ],
     "extraResources": [
-      { "from": "guide", "to": "guide" }
+      {
+        "from": "guide",
+        "to": "guide"
+      }
     ],
     "publish": {
       "provider": "github",
@@ -62,13 +65,32 @@
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
-        { "target": "dmg", "arch": ["arm64", "x64"] },
-        { "target": "zip", "arch": ["arm64", "x64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ],
       "identity": null
     },
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }]
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
     },
     "nsis": {
       "oneClick": true,
