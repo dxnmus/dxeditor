@@ -485,6 +485,30 @@ body.dark .row.dir.open .file-icon { color: #e2b452; }
 
 .milkdown .ProseMirror a { color: var(--accent); }
 
+/* Heading scale on the 16px body: a compact, consistent modular scale. */
+.crepe-root .milkdown .ProseMirror h1 {
+  font-size: 1.75rem; line-height: 1.25; font-weight: 600;
+  letter-spacing: -0.01em; margin: 1.5rem 0 0.5rem;
+}
+.crepe-root .milkdown .ProseMirror h2 {
+  font-size: 1.375rem; line-height: 1.3; font-weight: 600;
+  letter-spacing: -0.01em; margin: 1.4rem 0 0.4rem;
+}
+.crepe-root .milkdown .ProseMirror h3 {
+  font-size: 1.15rem; line-height: 1.35; font-weight: 600; margin: 1.1rem 0 0.35rem;
+}
+.crepe-root .milkdown .ProseMirror h4 {
+  font-size: 1rem; line-height: 1.4; font-weight: 600; margin: 1rem 0 0.3rem;
+}
+.crepe-root .milkdown .ProseMirror h5 {
+  font-size: 0.9rem; font-weight: 600; margin: 0.9rem 0 0.3rem;
+}
+.crepe-root .milkdown .ProseMirror h6 {
+  font-size: 0.85rem; font-weight: 600; color: var(--text-soft); margin: 0.9rem 0 0.3rem;
+}
+/* First heading in a note shouldn't push a big gap above itself. */
+.crepe-root .milkdown .ProseMirror > :first-child { margin-top: 0; }
+
 /* Block drag handle: signal that the ⠿ handle can be grabbed to reorder blocks.
    Crepe ships the drag behavior but only a "pointer" cursor, so it reads as a
    click target. Grab/grabbing cursors make drag-to-move discoverable. */
