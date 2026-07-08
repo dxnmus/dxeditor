@@ -791,6 +791,11 @@ export default function App() {
     <div className="app">
       {sidebarOpen && (
         <aside className="sidebar" style={{ width: sidebarWidth }}>
+          <div className="sidebar-brand">
+            <img className="brand-mark light-only" src="/logo-mark-dark.svg" alt="" />
+            <img className="brand-mark dark-only" src="/logo-mark-light.svg" alt="" />
+            <span className="brand-name">DXEditor</span>
+          </div>
           <div className="sidebar-head">
             <WorkspaceSwitcher
               workspaces={workspaces}
@@ -851,7 +856,7 @@ export default function App() {
           {(recentList.length > 0 || pinnedGuide) && (
             <div className="sidebar-recent">
               {recentList.length > 0 && (
-                <div className="recent-label">Recent workspaces</div>
+                <div className="recent-label">Recents</div>
               )}
               {recentList.map((w) => (
                 <button

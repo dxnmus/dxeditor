@@ -63,7 +63,7 @@ function TreeItem({
     return (
       <li>
         <div
-          className="row dir"
+          className={"row dir" + (open ? " open" : "")}
           style={pad}
           onClick={() => !isRenaming && setOpen((o) => !o)}
           onContextMenu={(e) => props.onMenu(e, node)}

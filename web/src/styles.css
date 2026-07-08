@@ -65,14 +65,45 @@ button { font-family: inherit; }
 .sidebar {
   position: relative;
   background: var(--bg-sidebar);
-  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   min-height: 0;
   flex-shrink: 0;
 }
 
-.sidebar-head { padding: 12px 10px 8px; }
+/* macOS hidden-title-bar shell: the top area drags the window and the toolbar
+   makes room for the floating traffic lights. The sidebar stays a solid color
+   (same --bg-sidebar as the browser build) with no divider. */
+body.mac-shell .topbar { -webkit-app-region: drag; }
+.ws-current, .ws-menu, .sidebar-buttons, .side-search, .topbar button {
+  -webkit-app-region: no-drag;
+}
+/* Sidebar closed: main becomes the first child and the traffic lights float
+   over it, so push the toolbar clear of them. */
+body.mac-shell .main:first-child .topbar { padding-left: 82px; }
+
+/* Brand row pinned to the very top of the sidebar. */
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 12px 4px;
+  -webkit-app-region: drag;
+}
+.sidebar-brand .brand-mark { height: 17px; width: 17px; }
+.sidebar-brand .light-only { display: block; }
+.sidebar-brand .dark-only { display: none; }
+body.dark .sidebar-brand .light-only { display: none; }
+body.dark .sidebar-brand .dark-only { display: block; }
+.sidebar-brand .brand-name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+body.mac-shell .sidebar-brand { padding: 15px 12px 6px 74px; }
+
+.sidebar-head { padding: 6px 12px 10px; }
 
 .workspace {
   display: flex;
@@ -93,7 +124,7 @@ button { font-family: inherit; }
   color: var(--text-soft);
   font-size: 12.5px;
   padding: 5px 8px;
-  border-radius: 6px;
+  border-radius: 7px;
   cursor: pointer;
   transition: background 0.1s;
 }
@@ -102,45 +133,49 @@ button { font-family: inherit; }
 
 .side-search {
   width: 100%;
-  padding: 6px 10px;
+  padding: 7px 11px;
   font-size: 13px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
+  border: 0.5px solid transparent;
+  border-radius: 9px;
+  background: var(--bg-hover);
   color: var(--text);
   outline: none;
+  transition: background 0.1s, border-color 0.1s, box-shadow 0.1s;
 }
 
-.side-search:focus { border-color: var(--accent); }
+.side-search::placeholder { color: var(--text-faint); }
+.side-search:focus {
+  background: var(--bg);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
 
 .tree-scroll { flex: 1; overflow-y: auto; padding: 4px 6px 20px; min-height: 0; }
 
 /* Recent-workspaces quick switch, pinned below the tree. */
 .sidebar-recent {
   flex-shrink: 0;
-  border-top: 1px solid var(--border);
-  padding: 8px 10px 10px;
+  border-top: 0.5px solid var(--border);
+  padding: 8px 12px 12px;
 }
 .recent-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 500;
   color: var(--text-faint);
-  padding: 0 2px 5px;
+  padding: 0 8px 5px;
 }
 .recent-item {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   width: 100%;
   border: none;
   background: transparent;
   font-family: inherit;
   font-size: 13px;
   color: var(--text-soft);
-  padding: 5px 6px;
-  border-radius: 6px;
+  padding: 6px 8px;
+  border-radius: 7px;
   cursor: pointer;
   text-align: left;
 }
@@ -157,12 +192,12 @@ button { font-family: inherit; }
 .row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px 4px;
+  gap: 7px;
+  padding: 5px 8px;
   margin: 1px 0;
   font-size: 13.5px;
   color: var(--text);
-  border-radius: 6px;
+  border-radius: 7px;
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
@@ -170,7 +205,10 @@ button { font-family: inherit; }
 }
 
 .row:hover { background: var(--bg-hover); color: var(--text); }
-.row.file.active { background: var(--bg-active); color: var(--text); font-weight: 500; }
+.row.file.active { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+/* Open folders tint their icon so expanded branches are easy to scan. */
+.row.dir.open .file-icon { color: #cf8f1e; }
+body.dark .row.dir.open .file-icon { color: #e2b452; }
 /* Non-editable files (images, PDFs, etc.) shown read-only for faithful structure. */
 .row.file.readonly .label { color: var(--text-faint); }
 
@@ -252,6 +290,8 @@ button { font-family: inherit; }
   padding: 8px 14px;
   gap: 12px;
   flex-shrink: 0;
+  min-height: 46px;
+  box-sizing: border-box;
 }
 
 .topbar-left, .topbar-right { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -693,12 +733,10 @@ kbd {
 .ws-switcher { position: relative; margin-bottom: 10px; }
 
 .ws-caption {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 500;
   color: var(--text-faint);
-  padding: 0 2px 4px;
+  padding: 0 4px 6px;
 }
 
 .ws-current {
@@ -706,19 +744,19 @@ kbd {
   align-items: center;
   gap: 8px;
   width: 100%;
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   background: var(--bg);
   font-family: inherit;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text);
-  padding: 8px 10px;
-  border-radius: 7px;
+  padding: 8px 11px;
+  border-radius: 9px;
   cursor: pointer;
   text-align: left;
-  box-shadow: 0 1px 2px rgba(15, 15, 15, 0.04);
   transition: border-color 0.1s, background 0.1s;
 }
+body.has-vibrancy .ws-current { background: var(--bg-hover); border-color: transparent; }
 
 .ws-current:hover { border-color: var(--accent); background: var(--bg-hover); }
 .ws-current .ws-icon { flex-shrink: 0; }
@@ -939,26 +977,42 @@ body.dark .cc-resolved { color: #4ade80; }
 .cc-replybox textarea:focus,
 .comment-popover textarea:focus { border-color: var(--accent); }
 
-/* Selection pill */
-.comment-pill {
+/* Right-click selection toolbar: formatting + comment in one compact bar. */
+.sel-toolbar {
   position: fixed;
   z-index: 280;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 5px;
-  border: none;
-  background: var(--text);
-  color: var(--bg);
-  font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  padding: 6px 12px;
-  border-radius: 999px;
-  cursor: pointer;
+  gap: 1px;
+  padding: 3px;
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
   box-shadow: var(--shadow);
 }
-
-.comment-pill:hover { transform: scale(1.04); }
+.sel-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 7px;
+  border: none;
+  background: transparent;
+  color: var(--text-soft);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1;
+}
+.sel-toolbar button:hover { background: var(--bg-hover); color: var(--text); }
+.sel-toolbar b, .sel-toolbar i, .sel-toolbar s { font-size: 14px; font-weight: 700; }
+.sel-toolbar i { font-weight: 400; }
+.sel-div { width: 0.5px; height: 18px; background: var(--border); margin: 0 3px; }
+.sel-comment { color: var(--accent); font-weight: 500; }
+.sel-comment:hover { color: var(--accent); }
 
 /* New-comment popover */
 .comment-popover {
@@ -1014,25 +1068,25 @@ body.dark .cc-resolved { color: #4ade80; }
 
 /* Highlights inside the editor */
 .comment-hl {
-  background: rgba(245, 197, 24, 0.28);
-  border-bottom: 2px solid rgba(245, 197, 24, 0.85);
+  background: rgba(245, 197, 24, 0.45);
+  border-bottom: 2px solid rgba(245, 197, 24, 0.95);
   cursor: pointer;
 }
 
 .comment-hl.agent {
-  background: rgba(147, 51, 234, 0.14);
-  border-bottom-color: rgba(147, 51, 234, 0.6);
+  background: rgba(147, 51, 234, 0.26);
+  border-bottom-color: rgba(147, 51, 234, 0.8);
 }
 
-body.dark .comment-hl { background: rgba(245, 197, 24, 0.18); }
-body.dark .comment-hl.agent { background: rgba(192, 132, 252, 0.16); }
+body.dark .comment-hl { background: rgba(245, 197, 24, 0.32); }
+body.dark .comment-hl.agent { background: rgba(192, 132, 252, 0.3); }
 
 .comment-hl.active {
-  background: rgba(245, 197, 24, 0.5);
+  background: rgba(245, 197, 24, 0.65);
 }
 
 .comment-hl.agent.active {
-  background: rgba(147, 51, 234, 0.3);
+  background: rgba(147, 51, 234, 0.42);
 }
 
 /* ============ Folder browser (Add Workspace) ============ */

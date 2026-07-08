@@ -106,18 +106,40 @@ async function createWindow() {
   });
   const { port } = await srv.listen(0); // free port, localhost only
 
+  const isMac = process.platform === "darwin";
+
   win = new BrowserWindow({
     width: 1280,
     height: 860,
     minWidth: 720,
     minHeight: 480,
     title: "DXEditor",
-    backgroundColor: "#ffffff",
+    // Modern macOS chrome: hide the title bar so content runs edge to edge and
+    // the traffic lights float over the sidebar. We keep a solid sidebar (no
+    // vibrancy) so its color is identical to the browser build. Other
+    // platforms keep a normal title bar (they still get the refreshed styling).
+    ...(isMac
+      ? {
+          titleBarStyle: "hiddenInset",
+          trafficLightPosition: { x: 14, y: 18 },
+          backgroundColor: "#ffffff",
+        }
+      : { backgroundColor: "#ffffff" }),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+
+  // Tell the UI it's running inside the macOS hidden-title-bar shell so it can
+  // make room for the floating traffic lights and drag from the top area.
+  if (isMac) {
+    win.webContents.on("dom-ready", () => {
+      win.webContents
+        .executeJavaScript('document.body.classList.add("mac-shell")')
+        .catch(() => {});
+    });
+  }
 
   // Open external links in the system browser, not in the app window.
   win.webContents.setWindowOpenHandler(({ url }) => {

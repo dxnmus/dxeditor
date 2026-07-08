@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Crepe } from "@milkdown/crepe";
 import { editorViewCtx } from "@milkdown/kit/core";
+import { toggleMark } from "@milkdown/kit/prose/commands";
 import type { NoteRef, Comment, CommentAnchor } from "../api";
 import {
   commentHighlightPlugin,
@@ -104,6 +105,9 @@ export default function MilkdownEditor({
       defaultValue: initialBody,
       features: {
         [Crepe.Feature.Latex]: false,
+        // The floating format toolbar popped up on every selection and lingered.
+        // Formatting still works via markdown syntax and ⌘B / ⌘I / ⌘K.
+        [Crepe.Feature.Toolbar]: false,
       },
       featureConfigs: {
         [Crepe.Feature.Placeholder]: {
@@ -174,26 +178,90 @@ export default function MilkdownEditor({
     return () => window.removeEventListener("comment-highlight-click", onHl);
   }, []);
 
-  // ---- Selection pill (💬 Comment) ---------------------------------------------
-  function syncSelectionPill() {
+  // Hide the "Comment" pill the instant the selection collapses — clicking
+  // away, typing, or deselecting — so it never lingers on screen.
+  useEffect(() => {
+    const onSelChange = () => {
+      const s = window.getSelection();
+      if (!s || s.rangeCount === 0 || s.isCollapsed) {
+        setPill((p) => (p.visible ? { ...p, visible: false } : p));
+      }
+    };
+    document.addEventListener("selectionchange", onSelChange);
+    return () => document.removeEventListener("selectionchange", onSelChange);
+  }, []);
+
+  // Dismiss the selection toolbar on outside click, Escape, or scroll.
+  useEffect(() => {
+    if (!pill.visible) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (!t.closest?.(".sel-toolbar")) setPill((p) => ({ ...p, visible: false }));
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPill((p) => ({ ...p, visible: false }));
+    };
+    const onScroll = () => setPill((p) => ({ ...p, visible: false }));
+    document.addEventListener("mousedown", onDown, true);
+    document.addEventListener("keydown", onKey, true);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", onDown, true);
+      document.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [pill.visible]);
+
+  // ---- Selection toolbar (formatting + comment, on right-click) ----------------
+  // Nothing pops up while you read or select — right-clicking a selection opens
+  // a compact toolbar. Clicking away, Escape, or scrolling dismisses it.
+  function handleContextMenu(e: React.MouseEvent) {
     const crepe = crepeRef.current;
     if (!crepe) return;
+    let sel: { from: number; to: number } | null = null;
     try {
       crepe.editor.action((ctx) => {
         const view = ctx.get(editorViewCtx);
         const { from, to, empty } = view.state.selection;
-        if (empty || to - from < 2) {
-          setPill((p) => (p.visible ? { ...p, visible: false } : p));
-          return;
-        }
-        const coords = view.coordsAtPos(to);
-        // Remember the exact range now — the DOM selection is often gone by the
-        // time the pill is clicked, so we must not re-read it later.
-        setPill({ visible: true, x: coords.left + 8, y: coords.bottom + 6, from, to });
+        if (!empty && to - from >= 1) sel = { from, to };
       });
     } catch {
       /* ignore */
     }
+    if (!sel) return; // no selection → let the default menu through
+    e.preventDefault();
+    setPill({ visible: true, x: e.clientX, y: e.clientY, from: sel.from, to: sel.to });
+  }
+
+  /** Resolve a logical format to whichever mark this schema actually defines. */
+  function markFor(schema: any, kind: string) {
+    const m = schema.marks;
+    switch (kind) {
+      case "bold": return m.strong;
+      case "italic": return m.emphasis || m.em;
+      case "strike": return m.strike_through || m.strikethrough || m.strike;
+      case "code": return m.inlineCode || m.code_inline || m.code;
+      case "link": return m.link;
+      default: return null;
+    }
+  }
+
+  function applyFormat(kind: string) {
+    const crepe = crepeRef.current;
+    if (!crepe) return;
+    crepe.editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const mark = markFor(view.state.schema, kind);
+      if (!mark) return;
+      let attrs: Record<string, unknown> | undefined;
+      if (kind === "link") {
+        const href = window.prompt("Link URL");
+        if (!href) return;
+        attrs = { href };
+      }
+      toggleMark(mark, attrs)(view.state, view.dispatch);
+      view.focus();
+    });
   }
 
   function openCommentPopover() {
@@ -320,7 +388,6 @@ export default function MilkdownEditor({
     // Navigation keys are handled in keydown; don't fight them here.
     if (["ArrowUp", "ArrowDown", "Enter", "Escape"].includes(e.key)) return;
     syncPickerToCaret();
-    syncSelectionPill();
   }
 
   function handleKeyDownCapture(e: React.KeyboardEvent) {
@@ -367,21 +434,30 @@ export default function MilkdownEditor({
       onMouseDownCapture={markInteracted}
       onPasteCapture={markInteracted}
       onDropCapture={markInteracted}
-      onMouseUp={() => setTimeout(syncSelectionPill, 10)}
+      onContextMenu={handleContextMenu}
       onClickCapture={handleClickCapture}
     >
       <div ref={rootRef} className="crepe-root" />
       {pill.visible && (
-        <button
-          className="comment-pill"
+        <div
+          className="sel-toolbar"
           style={{ left: pill.x, top: pill.y }}
-          onMouseDown={(e) => {
-            e.preventDefault(); // keep the text selection
-            openCommentPopover();
-          }}
+          onMouseDown={(e) => e.preventDefault()}
         >
-          <Icon name="message" size={14} /> Comment
-        </button>
+          <button title="Bold" onMouseDown={(e) => { e.preventDefault(); applyFormat("bold"); }}><b>B</b></button>
+          <button title="Italic" onMouseDown={(e) => { e.preventDefault(); applyFormat("italic"); }}><i>I</i></button>
+          <button title="Strikethrough" onMouseDown={(e) => { e.preventDefault(); applyFormat("strike"); }}><s>S</s></button>
+          <button title="Code" onMouseDown={(e) => { e.preventDefault(); applyFormat("code"); }}><Icon name="code" size={15} /></button>
+          <button title="Link" onMouseDown={(e) => { e.preventDefault(); applyFormat("link"); }}><Icon name="link" size={15} /></button>
+          <span className="sel-div" />
+          <button
+            className="sel-comment"
+            title="Add a comment"
+            onMouseDown={(e) => { e.preventDefault(); openCommentPopover(); }}
+          >
+            <Icon name="message" size={14} /> Comment
+          </button>
+        </div>
       )}
       {picker.open && (
         <WikiPicker
