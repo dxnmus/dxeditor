@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import YAML from "yaml";
 
 // Extensions we allow to be opened and written. Everything else is read-only
 // in the tree (or hidden) so the tool stays a Markdown editor, not a file manager
@@ -200,6 +201,91 @@ export async function remove(rootDir, relPath) {
   if (isEditable(relPath)) {
     await fs.rm(safeResolve(rootDir, sidecarOf(relPath)), { force: true });
   }
+}
+
+/**
+ * Scan the workspace for board cards: editable files whose frontmatter has
+ * `type: task`. Returns a flat list the board view groups by status or phase.
+ * Malformed frontmatter is skipped rather than failing the whole scan.
+ */
+export async function listTasks(rootDir) {
+  const tasks = [];
+
+  async function walk(relDir) {
+    const absDir = safeResolve(rootDir, relDir);
+    let entries;
+    try {
+      entries = await fs.readdir(absDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith(".")) continue;
+      if (IGNORED_DIRS.has(entry.name)) continue;
+      const relPath = path.posix.join(
+        relDir.split(path.sep).join("/"),
+        entry.name
+      );
+      if (entry.isDirectory()) {
+        await walk(path.join(relDir, entry.name));
+        continue;
+      }
+      if (!isEditable(entry.name)) continue;
+      let content;
+      try {
+        content = await fs.readFile(safeResolve(rootDir, relPath), "utf8");
+      } catch {
+        continue;
+      }
+      const { frontmatter } = splitFrontmatter(content);
+      if (!frontmatter) continue;
+      let data;
+      try {
+        data = YAML.parse(frontmatter);
+      } catch {
+        continue; // malformed YAML — skip this file
+      }
+      if (!data || data.type !== "task") continue;
+      tasks.push({
+        path: relPath,
+        title: String(data.title ?? entry.name.replace(/\.[^.]+$/, "")),
+        status: String(data.status ?? "planned"),
+        phase: data.phase == null ? null : data.phase,
+        owner: data.owner == null ? "" : String(data.owner),
+        order: typeof data.order === "number" ? data.order : 0,
+      });
+    }
+  }
+
+  await walk("");
+  return tasks;
+}
+
+/**
+ * Set a single frontmatter field on a task file (used by board drag-and-drop),
+ * preserving the body and other fields. Parses YAML, updates the key, rewrites.
+ */
+export async function updateTaskField(rootDir, relPath, field, value) {
+  const abs = safeResolve(rootDir, relPath);
+  if (!isEditable(abs)) {
+    throw Object.assign(new Error("File type not supported"), { status: 400 });
+  }
+  const content = await fs.readFile(abs, "utf8");
+  const { frontmatter, body } = splitFrontmatter(content);
+  let data = {};
+  if (frontmatter) {
+    try {
+      data = YAML.parse(frontmatter) || {};
+    } catch {
+      throw Object.assign(new Error("Can't parse frontmatter"), { status: 422 });
+    }
+  }
+  data[field] = value;
+  const yaml = YAML.stringify(data).replace(/\n$/, "");
+  const newContent = `---\n${yaml}\n---\n${body}`;
+  await fs.writeFile(abs, newContent, "utf8");
+  const stat = await fs.stat(abs);
+  return { mtimeMs: stat.mtimeMs };
 }
 
 /**

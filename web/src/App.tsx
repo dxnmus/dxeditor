@@ -28,6 +28,7 @@ import Backlinks from "./components/Backlinks";
 import WorkspaceSwitcher from "./components/WorkspaceSwitcher";
 import CommentsPanel from "./components/CommentsPanel";
 import CommentPopover from "./components/CommentPopover";
+import Board from "./components/Board";
 import Icon from "./components/Icon";
 import { buildReviewHtml, sanitizeRenderedHtml } from "./reviewExport";
 
@@ -71,6 +72,10 @@ function sidecarFor(p: string) {
 
 const EDITABLE_RE = /\.(md|markdown|mdown|txt)$/i;
 const IMAGE_RE = /\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$/i;
+const HTML_RE = /\.html?$/i;
+const PDF_RE = /\.pdf$/i;
+const VIDEO_RE = /\.(mp4|m4v|webm|mov|ogv)$/i;
+const AUDIO_RE = /\.(mp3|wav|m4a|aac|ogg|oga|flac)$/i;
 
 export default function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -88,6 +93,8 @@ export default function App() {
   const [notes, setNotes] = useState<NoteRef[]>([]);
   const [file, setFile] = useState<OpenFile | null>(null);
   const [preview, setPreview] = useState<string | null>(null); // read-only, non-editable file
+  const [showBoard, setShowBoard] = useState(false); // board view overrides file/preview
+  const [watchTick, setWatchTick] = useState(0); // bumped on folder changes so the board refetches
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [conflict, setConflict] = useState<string | null>(null); // disk content
   const [externalUpdate, setExternalUpdate] = useState(false);
@@ -230,6 +237,7 @@ export default function App() {
   const openFile = useCallback(
     async (path: string) => {
       await flushSave();
+      setShowBoard(false); // opening a file leaves the board view
       // Non-markdown files open read-only (no editor, no autosave).
       if (!EDITABLE_RE.test(path)) {
         setFile(null);
@@ -330,6 +338,7 @@ export default function App() {
   useEffect(() => {
     const stop = api.watch((event) => {
       if (event.ws !== wsRef.current) return; // another workspace
+      setWatchTick((t) => t + 1); // keep the board in sync with any change
       if (event.type === "tree") {
         refreshTree().catch(() => {});
         const f = fileRef.current;
@@ -774,7 +783,9 @@ export default function App() {
   const pinnedGuide = workspaces.find((w) => w.name === GUIDE_WS_NAME) ?? null;
   const title = file ? file.path.split("/").pop()!.replace(/\.[^.]+$/, "") : "";
   const breadcrumbPath = file?.path ?? preview;
-  const breadcrumb = breadcrumbPath
+  const breadcrumb = showBoard
+    ? [activeWorkspace?.name ?? "", "Board"].filter(Boolean).join(" / ")
+    : breadcrumbPath
     ? [activeWorkspace?.name ?? "", ...breadcrumbPath.split("/").slice(0, -1)].join(" / ")
     : "";
   const openCommentCount = comments.filter((c) => c.status === "open").length;
@@ -810,6 +821,7 @@ export default function App() {
               <button className="ghost icon-btn" title="New note (⌘N)" onClick={() => setModal({ kind: "new-note", dir: "" })}><Icon name="file-plus" /></button>
               <button className="ghost icon-btn" title="New folder" onClick={() => setModal({ kind: "new-folder", dir: "" })}><Icon name="folder-plus" /></button>
               <button className="ghost icon-btn" title="Search everything (⌘K)" onClick={() => setPaletteOpen(true)}><Icon name="search" /></button>
+              <button className={"ghost icon-btn" + (showBoard ? " on" : "")} title="Board" onClick={() => setShowBoard(true)}><Icon name="sliders" /></button>
             </div>
             <input
               className="side-search"
@@ -902,10 +914,10 @@ export default function App() {
             <span className="breadcrumb">{breadcrumb}</span>
           </div>
           <div className="topbar-right">
-            {file && (
+            {file && !showBoard && (
               <span className={"save-state " + saveState}>{saveLabel}</span>
             )}
-            {file && (
+            {file && !showBoard && (
               <button
                 className="ghost icon-btn"
                 title="Share for stakeholder review"
@@ -914,7 +926,7 @@ export default function App() {
                 <Icon name="share" />
               </button>
             )}
-            {file && (
+            {file && !showBoard && (
               <button
                 className={"ghost icon-btn comments-toggle" + (commentsOpen ? " on" : "")}
                 title="Comments"
@@ -980,7 +992,9 @@ export default function App() {
         )}
 
         <div className="content-row">
-          {file ? (
+          {showBoard ? (
+            <Board reloadToken={watchTick} onOpen={openFile} />
+          ) : file ? (
             <div className="page">
               <div className="page-inner">
                 <input
@@ -1044,14 +1058,75 @@ export default function App() {
                       src={api.rawUrl(preview)}
                       alt={preview.split("/").pop()}
                     />
+                  ) : PDF_RE.test(preview) ? (
+                    <iframe
+                      className="preview-frame"
+                      src={api.rawUrl(preview)}
+                      title={preview.split("/").pop()}
+                    />
+                  ) : VIDEO_RE.test(preview) ? (
+                    <>
+                      <video
+                        className="preview-video"
+                        controls
+                        src={api.rawUrl(preview)}
+                      />
+                      <div className="preview-actions">
+                        {/* escape hatch for codecs Chromium can't play (some .mov) */}
+                        <button
+                          type="button"
+                          className="preview-open-btn"
+                          onClick={() => api.openInDefaultApp(preview).catch(() => {})}
+                        >
+                          <Icon name="share" size={15} strokeWidth={1.75} />
+                          Open in default app
+                        </button>
+                      </div>
+                    </>
+                  ) : AUDIO_RE.test(preview) ? (
+                    <audio
+                      className="preview-audio"
+                      controls
+                      src={api.rawUrl(preview)}
+                    />
+                  ) : HTML_RE.test(preview) ? (
+                    <>
+                      {/* sandbox with no allowances: workspace HTML can come from
+                          teammates/agents, so scripts stay off in-app */}
+                      <iframe
+                        className="preview-frame"
+                        sandbox=""
+                        src={api.rawUrl(preview)}
+                        title={preview.split("/").pop()}
+                      />
+                      <div className="preview-actions">
+                        <a
+                          className="preview-open-btn"
+                          href={api.rawUrl(preview)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <Icon name="share" size={15} strokeWidth={1.75} />
+                          Open in browser
+                        </a>
+                      </div>
+                    </>
                   ) : (
                     <div className="preview-placeholder">
                       <div className="preview-icon"><Icon name="paperclip" size={30} strokeWidth={1.5} /></div>
-                      <p>Preview not available for this file type.</p>
+                      <p>No in-app preview for this file type.</p>
                       <p className="muted">
                         It's shown here so the folder structure matches what's on
                         disk. This tool edits Markdown and text files.
                       </p>
+                      <button
+                        type="button"
+                        className="preview-open-btn"
+                        onClick={() => api.openInDefaultApp(preview).catch(() => {})}
+                      >
+                        <Icon name="share" size={15} strokeWidth={1.75} />
+                        Open in default app
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1070,7 +1145,7 @@ export default function App() {
             </div>
           )}
 
-          {file && commentsOpen && (
+          {file && commentsOpen && !showBoard && (
             <CommentsPanel
               comments={comments}
               activeId={activeCommentId}

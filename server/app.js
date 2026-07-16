@@ -3,9 +3,12 @@ import path from "node:path";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   listTree,
+  listTasks,
+  updateTaskField,
   readFile,
   writeFile,
   createFile,
@@ -121,6 +124,33 @@ export function createServer({ dataDir, seedRoot, distDir }) {
   );
 
   app.get(
+    "/api/board",
+    h(async (req, res) => {
+      const { root } = wsOf(req);
+      res.json({ tasks: await listTasks(root) });
+    })
+  );
+
+  app.patch(
+    "/api/task",
+    h(async (req, res) => {
+      const { root } = wsOf(req);
+      const { path: relPath, field, value } = req.body || {};
+      if (!relPath || (field !== "status" && field !== "phase")) {
+        throw Object.assign(new Error("field must be status or phase"), {
+          status: 400,
+        });
+      }
+      // Keep phase numeric when the value is a plain integer.
+      let v = value;
+      if (field === "phase" && typeof v === "string" && /^\d+$/.test(v)) {
+        v = Number(v);
+      }
+      res.json(await updateTaskField(root, relPath, field, v));
+    })
+  );
+
+  app.get(
     "/api/file",
     h(async (req, res) => {
       const { root } = wsOf(req);
@@ -194,7 +224,8 @@ export function createServer({ dataDir, seedRoot, distDir }) {
     })
   );
 
-  // Raw file bytes, for previewing non-editable files (images) read-only.
+  // Raw file bytes, for previewing non-editable files (images, PDFs, media)
+  // read-only.
   const RAW_MIME = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
@@ -205,6 +236,19 @@ export function createServer({ dataDir, seedRoot, distDir }) {
     ".bmp": "image/bmp",
     ".ico": "image/x-icon",
     ".pdf": "application/pdf",
+    ".html": "text/html; charset=utf-8",
+    ".htm": "text/html; charset=utf-8",
+    ".mp4": "video/mp4",
+    ".m4v": "video/mp4",
+    ".webm": "video/webm",
+    ".mov": "video/quicktime",
+    ".ogv": "video/ogg",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".m4a": "audio/mp4",
+    ".aac": "audio/aac",
+    ".ogg": "audio/ogg",
+    ".flac": "audio/flac",
   };
   app.get(
     "/api/raw",
@@ -218,8 +262,34 @@ export function createServer({ dataDir, seedRoot, distDir }) {
         throw Object.assign(new Error("Not found"), { status: 404 });
       }
       const mime = RAW_MIME[path.extname(abs).toLowerCase()] || "application/octet-stream";
-      res.setHeader("Content-Type", mime);
-      fs.createReadStream(abs).pipe(res);
+      // sendFile handles Range requests (206), which <video> seeking needs.
+      res.sendFile(abs, { headers: { "Content-Type": mime } }, (err) => {
+        if (err && !res.headersSent) res.status(err.status || 500).end();
+      });
+    })
+  );
+
+  // Open a workspace file in the OS default application (Preview, Word, …).
+  // The server only ever runs on 127.0.0.1, same trust level as the delete API.
+  app.post(
+    "/api/open",
+    h(async (req, res) => {
+      const { root } = wsOf(req);
+      const relPath = String(req.body?.path || "");
+      if (!relPath) throw Object.assign(new Error("Missing path"), { status: 400 });
+      const abs = safeResolve(root, relPath);
+      const stat = await fsp.stat(abs).catch(() => null);
+      if (!stat || !stat.isFile()) {
+        throw Object.assign(new Error("Not found"), { status: 404 });
+      }
+      const child =
+        process.platform === "darwin"
+          ? spawn("open", [abs], { detached: true, stdio: "ignore" })
+          : process.platform === "win32"
+            ? spawn("cmd", ["/c", "start", "", abs], { detached: true, stdio: "ignore" })
+            : spawn("xdg-open", [abs], { detached: true, stdio: "ignore" });
+      child.unref();
+      res.json({ ok: true });
     })
   );
 

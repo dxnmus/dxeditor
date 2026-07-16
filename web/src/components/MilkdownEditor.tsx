@@ -402,7 +402,7 @@ export default function MilkdownEditor({
     }
   }
 
-  // ---- Internal link navigation ----------------------------------------------
+  // ---- Link navigation ---------------------------------------------------------
 
   function handleClickCapture(e: React.MouseEvent) {
     const anchor = (e.target as HTMLElement).closest("a");
@@ -411,12 +411,18 @@ export default function MilkdownEditor({
       return;
     }
     const href = anchor.getAttribute("href") || "";
-    if (/^(https?:|mailto:|tel:)/i.test(href)) return; // external: leave to Crepe
-    if (/\.(md|markdown|mdown|txt)$/i.test(href)) {
-      e.preventDefault();
-      e.stopPropagation();
-      cb.current.onOpenNote(decodeURI(href));
+    if (!href || href.startsWith("#")) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (/^(https?:|mailto:|tel:)/i.test(href)) {
+      // External: window.open routes through Electron's window-open handler,
+      // which hands the URL to the system browser.
+      window.open(href, "_blank", "noopener,noreferrer");
+      return;
     }
+    // Workspace-relative: notes open in the editor, other files (images,
+    // PDFs, …) open in the read-only preview — openFile routes by extension.
+    cb.current.onOpenNote(decodeURI(href));
   }
 
   const markInteracted = () => {

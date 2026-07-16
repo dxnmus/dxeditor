@@ -42,6 +42,15 @@ export interface Workspace {
   root: string;
 }
 
+export interface Task {
+  path: string;
+  title: string;
+  status: string;
+  phase: number | string | null;
+  owner: string;
+  order: number;
+}
+
 export interface CommentAnchor {
   quote: string;
   prefix: string;
@@ -124,6 +133,14 @@ export const api = {
 
   // --- Files -----------------------------------------------------------------
   tree: () => req<{ tree: TreeNode[] }>("/api/tree").then((r) => r.tree),
+
+  board: () => req<{ tasks: Task[] }>("/api/board").then((r) => r.tasks),
+
+  updateTask: (path: string, field: "status" | "phase", value: string) =>
+    req<{ mtimeMs: number }>("/api/task", {
+      method: "PATCH",
+      body: JSON.stringify({ path, field, value }),
+    }),
 
   read: (path: string) =>
     req<FileData>(`/api/file?path=${encodeURIComponent(path)}`),
@@ -209,8 +226,15 @@ export const api = {
       { method: "DELETE" }
     ),
 
-  // Raw URL for previewing a non-editable file (image) read-only.
+  // Raw URL for previewing a non-editable file (image, PDF, HTML) read-only.
   rawUrl: (path: string) => withWs(`/api/raw?path=${encodeURIComponent(path)}`),
+
+  // Ask the server to open a file in the OS default application.
+  openInDefaultApp: (path: string) =>
+    req<{ ok: true }>("/api/open", {
+      method: "POST",
+      body: JSON.stringify({ path }),
+    }),
 
   // --- Folder browser (Add Workspace picker) ------------------------------------
   browse: (path?: string) =>

@@ -128,6 +128,9 @@ async function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      // Chromium's built-in PDF viewer counts as a plugin; without this the
+      // in-app PDF preview downloads the file instead of rendering it.
+      plugins: true,
     },
   });
 
@@ -145,6 +148,16 @@ async function createWindow() {
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: "deny" };
+  });
+
+  // A plain <a href> click navigates the window itself rather than opening a
+  // popup; keep the app pinned to its localhost origin and send everything
+  // else to the system browser too.
+  win.webContents.on("will-navigate", (event, url) => {
+    if (!url.startsWith(`http://127.0.0.1:${port}`)) {
+      event.preventDefault();
+      shell.openExternal(url);
+    }
   });
 
   await win.loadURL(`http://127.0.0.1:${port}`);
